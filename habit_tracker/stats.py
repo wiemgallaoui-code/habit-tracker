@@ -13,6 +13,7 @@ class HabitStats:
     habit_id: int
     name: str
     created_on: date
+    tracking_start: date
     total_completions: int
     current_streak: int
     longest_streak: int
@@ -64,6 +65,10 @@ def _habit_created_on(created_at: str) -> date:
     return datetime.fromisoformat(created_at).date()
 
 
+def _habit_tracking_start(habit) -> date:
+    return date.fromisoformat(habit["start_date"])
+
+
 def get_habit_stats(habit_id: int, today: date | None = None) -> HabitStats | None:
     """Return stats for one habit, or None if the habit does not exist."""
     habit = get_habit_by_id(habit_id)
@@ -72,22 +77,26 @@ def get_habit_stats(habit_id: int, today: date | None = None) -> HabitStats | No
 
     today = today or date.today()
     created_on = _habit_created_on(habit["created_at"])
-    completion_dates = _completion_dates(habit_id)
-    tracking_start = created_on
-    if completion_dates:
-        tracking_start = min(created_on, min(completion_dates))
+    tracking_start = _habit_tracking_start(habit)
+    all_completion_dates = _completion_dates(habit_id)
+    completion_dates = {
+        day
+        for day in all_completion_dates
+        if tracking_start <= day <= today
+    }
     days_tracked = max((today - tracking_start).days + 1, 1)
     total = len(completion_dates)
-    rate = round((total / days_tracked) * 100, 1)
-    last_completed = max(completion_dates) if completion_dates else None
+    rate = round(min((total / days_tracked) * 100, 100.0), 1)
+    last_completed = max(all_completion_dates) if all_completion_dates else None
 
     return HabitStats(
         habit_id=habit["id"],
         name=habit["name"],
         created_on=created_on,
+        tracking_start=tracking_start,
         total_completions=total,
-        current_streak=_current_streak(completion_dates, today),
-        longest_streak=_longest_streak(completion_dates),
+        current_streak=_current_streak(all_completion_dates, today),
+        longest_streak=_longest_streak(all_completion_dates),
         completion_rate=rate,
         days_tracked=days_tracked,
         completed_today=today in completion_dates,

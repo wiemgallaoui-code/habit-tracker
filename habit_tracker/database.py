@@ -12,7 +12,8 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS habits (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    start_date TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS completions (
@@ -23,6 +24,22 @@ CREATE TABLE IF NOT EXISTS completions (
     UNIQUE (habit_id, completed_on)
 );
 """
+
+HABIT_COLUMNS = "id, name, created_at, start_date"
+
+
+def _migrate_schema(conn: sqlite3.Connection) -> None:
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(habits)")}
+    if "start_date" not in columns:
+        conn.execute("ALTER TABLE habits ADD COLUMN start_date TEXT")
+        conn.execute(
+            """
+            UPDATE habits
+            SET start_date = substr(created_at, 1, 10)
+            WHERE start_date IS NULL OR start_date = ''
+            """
+        )
+        conn.commit()
 
 
 def get_connection(db_path: Path | str | None = None) -> sqlite3.Connection:
@@ -39,19 +56,25 @@ def init_db(db_path: Path | str | None = None) -> None:
     """Create tables if they do not exist."""
     with get_connection(db_path) as conn:
         conn.executescript(SCHEMA)
+        _migrate_schema(conn)
 
 
-def add_habit(name: str, db_path: Path | str | None = None) -> sqlite3.Row:
+def add_habit(
+    name: str,
+    start_date: date | None = None,
+    db_path: Path | str | None = None,
+) -> sqlite3.Row:
     """Insert a habit and return the new row."""
     created_at = datetime.now().isoformat(timespec="seconds")
+    tracking_start = (start_date or date.today()).isoformat()
     with get_connection(db_path) as conn:
         cursor = conn.execute(
-            "INSERT INTO habits (name, created_at) VALUES (?, ?)",
-            (name.strip(), created_at),
+            "INSERT INTO habits (name, created_at, start_date) VALUES (?, ?, ?)",
+            (name.strip(), created_at, tracking_start),
         )
         conn.commit()
         row = conn.execute(
-            "SELECT id, name, created_at FROM habits WHERE id = ?",
+            f"SELECT {HABIT_COLUMNS} FROM habits WHERE id = ?",
             (cursor.lastrowid,),
         ).fetchone()
     if row is None:
@@ -63,7 +86,7 @@ def list_habits(db_path: Path | str | None = None) -> list[sqlite3.Row]:
     """Return all habits ordered by name."""
     with get_connection(db_path) as conn:
         rows = conn.execute(
-            "SELECT id, name, created_at FROM habits ORDER BY name COLLATE NOCASE"
+            f"SELECT {HABIT_COLUMNS} FROM habits ORDER BY name COLLATE NOCASE"
         ).fetchall()
     return list(rows)
 
@@ -72,7 +95,7 @@ def get_habit_by_id(habit_id: int, db_path: Path | str | None = None) -> sqlite3
     """Return a habit by id, or None if not found."""
     with get_connection(db_path) as conn:
         return conn.execute(
-            "SELECT id, name, created_at FROM habits WHERE id = ?",
+            f"SELECT {HABIT_COLUMNS} FROM habits WHERE id = ?",
             (habit_id,),
         ).fetchone()
 
@@ -81,8 +104,26 @@ def get_habit_by_name(name: str, db_path: Path | str | None = None) -> sqlite3.R
     """Return a habit by name (case-insensitive), or None if not found."""
     with get_connection(db_path) as conn:
         return conn.execute(
-            "SELECT id, name, created_at FROM habits WHERE name = ? COLLATE NOCASE",
+            f"SELECT {HABIT_COLUMNS} FROM habits WHERE name = ? COLLATE NOCASE",
             (name.strip(),),
+        ).fetchone()
+
+
+def update_start_date(
+    habit_id: int,
+    start_date: date,
+    db_path: Path | str | None = None,
+) -> sqlite3.Row | None:
+    """Update the tracking start date for a habit."""
+    with get_connection(db_path) as conn:
+        conn.execute(
+            "UPDATE habits SET start_date = ? WHERE id = ?",
+            (start_date.isoformat(), habit_id),
+        )
+        conn.commit()
+        return conn.execute(
+            f"SELECT {HABIT_COLUMNS} FROM habits WHERE id = ?",
+            (habit_id,),
         ).fetchone()
 
 

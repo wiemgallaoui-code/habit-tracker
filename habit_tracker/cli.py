@@ -17,6 +17,7 @@ from habit_tracker.database import (
     list_habits,
     log_completion,
     remove_habit,
+    update_start_date,
 )
 from habit_tracker.stats import get_all_habit_stats, get_habit_stats
 
@@ -32,12 +33,24 @@ def cmd_add(args: argparse.Namespace) -> int:
     if not name:
         print("Error: habit name cannot be empty.", file=sys.stderr)
         return 1
+
+    start_date: date | None = None
+    if args.start_date:
+        try:
+            start_date = date.fromisoformat(args.start_date)
+        except ValueError:
+            print("Error: start date must be YYYY-MM-DD.", file=sys.stderr)
+            return 1
+
     try:
-        habit = add_habit(name)
+        habit = add_habit(name, start_date=start_date)
     except sqlite3.IntegrityError:
         print(f"Error: habit '{name}' already exists.", file=sys.stderr)
         return 1
-    print(f"Added habit #{habit['id']}: {habit['name']}")
+    print(
+        f"Added habit #{habit['id']}: {habit['name']} "
+        f"(tracking from {habit['start_date']})"
+    )
     return 0
 
 
@@ -104,6 +117,7 @@ def _print_habit_stats(stats) -> None:
 
     print(f"Habit: {stats.name} (#{stats.habit_id})")
     print(f"Created: {stats.created_on.isoformat()}")
+    print(f"Tracking since: {stats.tracking_start.isoformat()}")
     print(f"Completed today: {today_label}")
     print(f"Last completed: {last_label}")
     print(f"Total completions: {stats.total_completions}")
@@ -172,6 +186,29 @@ def cmd_chart(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_set_start(args: argparse.Namespace) -> int:
+    habit = _resolve_habit(args.target)
+    if habit is None:
+        print(f"Error: no habit found for '{args.target}'.", file=sys.stderr)
+        return 1
+
+    try:
+        start_date = date.fromisoformat(args.date)
+    except ValueError:
+        print("Error: date must be YYYY-MM-DD.", file=sys.stderr)
+        return 1
+
+    updated = update_start_date(habit["id"], start_date)
+    if updated is None:
+        print(f"Error: could not update start date for '{args.target}'.", file=sys.stderr)
+        return 1
+
+    print(
+        f"Updated '{updated['name']}' to track from {updated['start_date']}."
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="habit_tracker",
@@ -181,6 +218,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_parser = subparsers.add_parser("add", help="Add a new habit")
     add_parser.add_argument("name", help="Habit name")
+    add_parser.add_argument(
+        "--start-date",
+        help="Tracking start date in YYYY-MM-DD format (defaults to today)",
+    )
     add_parser.set_defaults(func=cmd_add)
 
     list_parser = subparsers.add_parser("list", help="List all habits")
@@ -215,6 +256,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Number of days to include (default: 7)",
     )
     chart_parser.set_defaults(func=cmd_chart)
+
+    set_start_parser = subparsers.add_parser(
+        "set-start",
+        help="Set the tracking start date for a habit",
+    )
+    set_start_parser.add_argument("target", help="Habit id or name")
+    set_start_parser.add_argument(
+        "--date",
+        required=True,
+        help="Tracking start date in YYYY-MM-DD format",
+    )
+    set_start_parser.set_defaults(func=cmd_set_start)
 
     return parser
 
