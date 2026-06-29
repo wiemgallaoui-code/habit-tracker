@@ -7,6 +7,7 @@ import sqlite3
 import sys
 from datetime import date
 
+from habit_tracker.charts import save_completion_chart
 from habit_tracker.database import (
     add_habit,
     get_habit_by_id,
@@ -147,6 +148,30 @@ def cmd_stats(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_chart(args: argparse.Namespace) -> int:
+    habit = _resolve_habit(args.target)
+    if habit is None:
+        print(f"Error: no habit found for '{args.target}'.", file=sys.stderr)
+        return 1
+
+    if args.days < 1:
+        print("Error: --days must be at least 1.", file=sys.stderr)
+        return 1
+
+    try:
+        chart_path = save_completion_chart(
+            habit["id"],
+            habit["name"],
+            days=args.days,
+        )
+    except ValueError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+
+    print(f"Chart saved to {chart_path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="habit_tracker",
@@ -180,6 +205,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Habit id or name (omit for summary of all habits)",
     )
     stats_parser.set_defaults(func=cmd_stats)
+
+    chart_parser = subparsers.add_parser("chart", help="Save a completion chart as PNG")
+    chart_parser.add_argument("target", help="Habit id or name")
+    chart_parser.add_argument(
+        "--days",
+        type=int,
+        default=7,
+        help="Number of days to include (default: 7)",
+    )
+    chart_parser.set_defaults(func=cmd_chart)
 
     return parser
 
