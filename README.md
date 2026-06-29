@@ -31,6 +31,9 @@ python -m habit_tracker add "Read 20 minutes"
 python -m habit_tracker list
 python -m habit_tracker remove 1
 python -m habit_tracker remove "Exercise"
+python -m habit_tracker check "Exercise"
+python -m habit_tracker check 1
+python -m habit_tracker check "Exercise" --date 2026-06-01
 ```
 
 ## Project structure

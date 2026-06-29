@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
+from datetime import date
 
 from habit_tracker.database import (
     add_habit,
@@ -12,6 +13,7 @@ from habit_tracker.database import (
     get_habit_by_name,
     init_db,
     list_habits,
+    log_completion,
     remove_habit,
 )
 
@@ -63,6 +65,34 @@ def cmd_remove(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_check(args: argparse.Namespace) -> int:
+    habit = _resolve_habit(args.target)
+    if habit is None:
+        print(f"Error: no habit found for '{args.target}'.", file=sys.stderr)
+        return 1
+
+    completed_on: date | None = None
+    if args.date:
+        try:
+            completed_on = date.fromisoformat(args.date)
+        except ValueError:
+            print("Error: date must be YYYY-MM-DD.", file=sys.stderr)
+            return 1
+
+    try:
+        completion = log_completion(habit["id"], completed_on=completed_on)
+    except sqlite3.IntegrityError:
+        day = (completed_on or date.today()).isoformat()
+        print(
+            f"Error: '{habit['name']}' was already checked off on {day}.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(f"Checked off '{habit['name']}' for {completion['completed_on']}.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="habit_tracker",
@@ -80,6 +110,14 @@ def build_parser() -> argparse.ArgumentParser:
     remove_parser = subparsers.add_parser("remove", help="Remove a habit by id or name")
     remove_parser.add_argument("target", help="Habit id or name")
     remove_parser.set_defaults(func=cmd_remove)
+
+    check_parser = subparsers.add_parser("check", help="Log a daily completion")
+    check_parser.add_argument("target", help="Habit id or name")
+    check_parser.add_argument(
+        "--date",
+        help="Completion date in YYYY-MM-DD format (defaults to today)",
+    )
+    check_parser.set_defaults(func=cmd_check)
 
     return parser
 
