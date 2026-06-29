@@ -25,7 +25,13 @@ pip install -r requirements.txt
 
 ## Usage
 
-Coming soon — CLI commands will be added in upcoming steps.
+```bash
+python -m habit_tracker add "Exercise"
+python -m habit_tracker add "Read 20 minutes"
+python -m habit_tracker list
+python -m habit_tracker remove 1
+python -m habit_tracker remove "Exercise"
+```
 
 ## Project structure
 
