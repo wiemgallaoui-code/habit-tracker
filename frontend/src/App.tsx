@@ -4,6 +4,7 @@ import {
   createHabit,
   deleteHabit,
   fetchHabits,
+  updateStartDate,
 } from "./api/client";
 import { AddHabitForm } from "./components/AddHabitForm";
 import { ChartModal } from "./components/ChartModal";
@@ -48,9 +49,9 @@ export default function App() {
     }
   }
 
-  async function handleAdd(name: string) {
+  async function handleAdd(name: string, startDate: string) {
     await withBusy(async () => {
-      await createHabit(name);
+      await createHabit(name, startDate);
       await loadHabits();
     });
   }
@@ -74,23 +75,27 @@ export default function App() {
     });
   }
 
+  async function handleUpdateStartDate(id: number, startDate: string) {
+    await withBusy(async () => {
+      await updateStartDate(id, startDate);
+      await loadHabits();
+    });
+  }
+
   return (
     <div className="mx-auto min-h-screen max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <header className="mb-8">
         <div>
           <p className="text-sm font-medium uppercase tracking-[0.2em] text-emerald-300">
-            Full-stack demo
+            React + FastAPI
           </p>
           <h1 className="mt-2 text-4xl font-bold tracking-tight text-white">
             Habit Tracker
           </h1>
           <p className="mt-2 max-w-2xl text-slate-400">
-            Python, SQLite, FastAPI, and a React dashboard for daily habits,
-            streaks, and charts.
+            Track daily habits with streaks, completion rates, and charts.
+            Choose when tracking starts for each habit.
           </p>
-        </div>
-        <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300">
-          API + SQLite backend
         </div>
       </header>
 
@@ -125,6 +130,7 @@ export default function App() {
                 onCheck={handleCheck}
                 onDelete={handleDelete}
                 onShowChart={setChartHabit}
+                onUpdateStartDate={handleUpdateStartDate}
               />
             ))}
           </section>

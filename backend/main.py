@@ -15,6 +15,7 @@ from backend.schemas import (
     HabitCreate,
     HabitResponse,
     MessageResponse,
+    StartDateUpdate,
     StatsResponse,
 )
 from habit_tracker.charts import save_completion_chart
@@ -22,9 +23,9 @@ from habit_tracker.database import (
     add_habit,
     get_habit_by_id,
     init_db,
-    list_habits,
     log_completion,
     remove_habit,
+    update_start_date,
 )
 from habit_tracker.stats import HabitStats, get_all_habit_stats, get_habit_stats
 
@@ -47,6 +48,7 @@ def _stats_to_response(stats: HabitStats) -> StatsResponse:
         habit_id=stats.habit_id,
         name=stats.name,
         created_on=stats.created_on.isoformat(),
+        tracking_start=stats.tracking_start.isoformat(),
         total_completions=stats.total_completions,
         current_streak=stats.current_streak,
         longest_streak=stats.longest_streak,
@@ -65,6 +67,7 @@ def _habit_to_response(stats: HabitStats) -> HabitResponse:
         id=stats.habit_id,
         name=stats.name,
         created_at=habit["created_at"],
+        start_date=habit["start_date"],
         completed_today=stats.completed_today,
         current_streak=stats.current_streak,
         longest_streak=stats.longest_streak,
@@ -93,12 +96,41 @@ def create_habit(payload: HabitCreate) -> HabitResponse:
     name = payload.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Habit name cannot be empty")
+
+    start_date: date | None = None
+    if payload.start_date:
+        try:
+            start_date = date.fromisoformat(payload.start_date)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="Start date must be YYYY-MM-DD") from error
+
     try:
-        habit = add_habit(name)
+        habit = add_habit(name, start_date=start_date)
     except sqlite3.IntegrityError as error:
         raise HTTPException(status_code=409, detail=f"Habit '{name}' already exists") from error
 
     stats = get_habit_stats(habit["id"])
+    if stats is None:
+        raise HTTPException(status_code=500, detail="Failed to load habit stats")
+    return _habit_to_response(stats)
+
+
+@app.patch("/api/habits/{habit_id}/start-date", response_model=HabitResponse)
+def change_start_date(habit_id: int, payload: StartDateUpdate) -> HabitResponse:
+    habit = get_habit_by_id(habit_id)
+    if habit is None:
+        raise HTTPException(status_code=404, detail="Habit not found")
+
+    try:
+        start_date = date.fromisoformat(payload.start_date)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail="Start date must be YYYY-MM-DD") from error
+
+    updated = update_start_date(habit_id, start_date)
+    if updated is None:
+        raise HTTPException(status_code=500, detail="Failed to update start date")
+
+    stats = get_habit_stats(habit_id)
     if stats is None:
         raise HTTPException(status_code=500, detail="Failed to load habit stats")
     return _habit_to_response(stats)

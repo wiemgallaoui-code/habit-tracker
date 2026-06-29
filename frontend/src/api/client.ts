@@ -22,10 +22,17 @@ export function fetchHabits(): Promise<Habit[]> {
   return request<Habit[]>("/api/habits");
 }
 
-export function createHabit(name: string): Promise<Habit> {
+export function createHabit(name: string, startDate?: string): Promise<Habit> {
   return request<Habit>("/api/habits", {
     method: "POST",
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, start_date: startDate }),
+  });
+}
+
+export function updateStartDate(id: number, startDate: string): Promise<Habit> {
+  return request<Habit>(`/api/habits/${id}/start-date`, {
+    method: "PATCH",
+    body: JSON.stringify({ start_date: startDate }),
   });
 }
 
