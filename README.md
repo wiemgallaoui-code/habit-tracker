@@ -109,7 +109,7 @@ The CLI and web app share the same SQLite database in `data/habits.db`.
 ## Project structure
 
 ```
-CLI Habit Tracker/
+habit-tracker/
 ├── backend/           # FastAPI REST API
 ├── frontend/          # React dashboard
 ├── habit_tracker/     # shared Python package (DB, stats, charts, CLI)
