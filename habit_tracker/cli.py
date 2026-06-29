@@ -12,10 +12,12 @@ from habit_tracker.database import (
     get_habit_by_id,
     get_habit_by_name,
     init_db,
+    is_completed_on,
     list_habits,
     log_completion,
     remove_habit,
 )
+from habit_tracker.stats import get_all_habit_stats, get_habit_stats
 
 
 def _resolve_habit(target: str):
@@ -44,10 +46,12 @@ def cmd_list(_: argparse.Namespace) -> int:
         print('No habits yet. Add one with: python -m habit_tracker add "Your habit"')
         return 0
 
-    print(f"{'ID':<6}{'Name'}")
-    print("-" * 30)
+    today = date.today()
+    print(f"{'ID':<6}{'Name':<22}{'Today'}")
+    print("-" * 40)
     for habit in habits:
-        print(f"{habit['id']:<6}{habit['name']}")
+        done = "yes" if is_completed_on(habit["id"], today) else "no"
+        print(f"{habit['id']:<6}{habit['name']:<22}{done}")
     return 0
 
 
@@ -93,6 +97,56 @@ def cmd_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_habit_stats(stats) -> None:
+    today_label = "yes" if stats.completed_today else "no"
+    last_label = stats.last_completed.isoformat() if stats.last_completed else "never"
+
+    print(f"Habit: {stats.name} (#{stats.habit_id})")
+    print(f"Created: {stats.created_on.isoformat()}")
+    print(f"Completed today: {today_label}")
+    print(f"Last completed: {last_label}")
+    print(f"Total completions: {stats.total_completions}")
+    print(f"Current streak: {stats.current_streak} day(s)")
+    print(f"Longest streak: {stats.longest_streak} day(s)")
+    print(
+        f"Completion rate: {stats.completion_rate}% "
+        f"({stats.total_completions} of {stats.days_tracked} days)"
+    )
+
+
+def cmd_stats(args: argparse.Namespace) -> int:
+    if args.target:
+        habit = _resolve_habit(args.target)
+        if habit is None:
+            print(f"Error: no habit found for '{args.target}'.", file=sys.stderr)
+            return 1
+        stats = get_habit_stats(habit["id"])
+        if stats is None:
+            print(f"Error: no habit found for '{args.target}'.", file=sys.stderr)
+            return 1
+        _print_habit_stats(stats)
+        return 0
+
+    all_stats = get_all_habit_stats()
+    if not all_stats:
+        print('No habits yet. Add one with: python -m habit_tracker add "Your habit"')
+        return 0
+
+    print(
+        f"{'ID':<6}{'Name':<18}{'Today':<7}{'Streak':<8}{'Best':<6}"
+        f"{'Total':<7}{'Rate'}"
+    )
+    print("-" * 60)
+    for stats in all_stats:
+        today_label = "yes" if stats.completed_today else "no"
+        print(
+            f"{stats.habit_id:<6}{stats.name:<18}{today_label:<7}"
+            f"{stats.current_streak:<8}{stats.longest_streak:<6}"
+            f"{stats.total_completions:<7}{stats.completion_rate}%"
+        )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="habit_tracker",
@@ -118,6 +172,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Completion date in YYYY-MM-DD format (defaults to today)",
     )
     check_parser.set_defaults(func=cmd_check)
+
+    stats_parser = subparsers.add_parser("stats", help="Show streak and completion stats")
+    stats_parser.add_argument(
+        "target",
+        nargs="?",
+        help="Habit id or name (omit for summary of all habits)",
+    )
+    stats_parser.set_defaults(func=cmd_stats)
 
     return parser
 

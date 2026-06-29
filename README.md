@@ -7,7 +7,7 @@ A command-line habit tracker built with **Python**, **SQLite**, and **matplotlib
 - Add, list, and remove habits
 - Log daily completions
 - Streak and completion stats
-- Charts: weekly heatmap, completion trends
+- Charts: weekly heatmap, completion trends (planned)
 
 ## Setup
 
@@ -34,6 +34,8 @@ python -m habit_tracker remove "Exercise"
 python -m habit_tracker check "Exercise"
 python -m habit_tracker check 1
 python -m habit_tracker check "Exercise" --date 2026-06-01
+python -m habit_tracker stats
+python -m habit_tracker stats "Exercise"
 ```
 
 ## Project structure
